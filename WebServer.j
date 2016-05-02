@@ -222,7 +222,7 @@ var _sharedInstance = nil;
     var /*CPData*/ body = request.body;
     var /*CPArray*/ pathComponents = [path pathComponents];
     var /*CPString*/ sessionKey;
-    var /*CPString*/ functionName = [pathComponents count] > 0 ? [pathComponents objectAtIndex:1] : nil;
+    var /*CPString*/ functionName = [pathComponents count] > 0 ? [pathComponents objectAtIndex:2] : nil;
     var /*Class*/ functionClass = nil;
     var /*CPObject <BackendFunction>*/ aFunction;
 //    var /*CPObject <HTTPResponse>*/ response;
