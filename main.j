@@ -130,6 +130,9 @@ function main(args, namedArgs)
                         StartWebServer(BackendModelPath);
                     }
                 });
+            } else {
+                BackendModelPath = @"file://" + modelPath;
+                StartWebServer(BackendModelPath);
             }
         } else {
            StartWebServer(BackendModelPath);
