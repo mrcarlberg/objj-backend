@@ -70,11 +70,10 @@
 }
 
 - (CPDictionary)httpHeaders {
-    return [CPDictionary dictionaryWithObjectsAndKeys:[CPString stringWithFormat:@"LOF Backend %@ (%@)", "<Version>", "<Port>"], @"Server"];
+    return [CPDictionary dictionaryWithObjectsAndKeys:[CPString stringWithFormat:@"LOF Backend %@ (%@)", "<Version>", "<Port>"], @"Server", [self contentLength], "Content-Length"];
 }
 
 @end
-
 
 @implementation JSONHTTPResponse : HTTPDataResponse
 
