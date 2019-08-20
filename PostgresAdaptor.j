@@ -36,6 +36,7 @@ var PredicateTraversalOptionIsBitColumn = 2;
     JSObject                connectionConfig;
     CPManagedObjectModel    model @accessors;
     JSObject                fetchSqlCache;
+    JSObject                pgPool;
 }
 
 /*!
@@ -49,6 +50,7 @@ var PredicateTraversalOptionIsBitColumn = 2;
         connectionConfig = aConfig;
         model = aModel;
         fetchSqlCache = Object.create(null);
+        pgPool = new pg.Pool(aConfig);
     }
 
     return self;
@@ -103,7 +105,7 @@ var PredicateTraversalOptionIsBitColumn = 2;
 
     if (BackendOptions.verbose) console.log("Sql: " + sql + (parameters ? ": " + parameters : ""));
 
-    pg.connect(connectionConfig, function(err, client, done) {
+    pgPool.connect(function(err, client, done) {
         if(err) {
             return console.error('Could not connect to postgres', err);
         }
@@ -297,7 +299,7 @@ var commit = function(client, done) {
     with two a attributes. 'sql' and 'parameters'.
  */
 - (void)executeSqlFromArray:(CPArray)sqlArray completionHandler:(Function/*(id error)*/)completionBlock {
-    pg.connect(connectionConfig, function(err, client, done) {
+    pgPool.connect(function(err, client, done) {
         if(err) {
             return console.error('could not connect to postgres', err);
         }
@@ -418,7 +420,7 @@ var commit = function(client, done) {
 }
 
 - (void)fetchUniqueIdForEntityNamed:(CPString)entityName completionHandler:(Function/*(id)*/)completionBlock {
-    pg.connect(connectionConfig, function(err, client, done) {
+    pgPool.connect(function(err, client, done) {
         if (err) {
             return console.error('could not connect to postgres', err);
         }
@@ -435,14 +437,17 @@ var commit = function(client, done) {
     This method will fetch meta data from database and validate it against the model
 */
 - (void)validatedDatabaseWithCompletionHandler:(Function/*(CPArray errors, CPArray correctionSql)*/)completionBlock {
-    pg.connect(connectionConfig, function(err, client, done) {
+    pgPool.connect(function(err, client, done) {
         if (err) {
             if(err.code === @"28P01") { // Invalid password
                 var callee = arguments.callee;
                 hidden("Database password: ", function(password) {
                     connectionConfig.password = password;
+                    pgPool.end();
+                    pgPool = new pg.Pool(connectionConfig);
                     [self validatedDatabaseWithCompletionHandler:completionBlock];
                 });
+                console.error("valid end");
                 return;
             } else {
                 return console.error('could not connect to postgres', err);
