@@ -186,7 +186,7 @@ ValidatedDatabaseWithCompletionHandler = function(completionBlock)
                 if (BackendOptions.alter) {
                     if (BackendOptions.verbose) console.log("Altering the database to correct errors: ");
                     [correctionSql enumerateObjectsUsingBlock:function(sqlDict) {
-                        console.log(sqlDict.sql, sqlDict.parameters);
+                        console.log(sqlDict.sql, sqlDict.parameters || "");
                     }];
                     [BackendDatabaseAdaptor executeSqlFromArray:correctionSql completionHandler:function(error) {
                         if (error != nil) console.error('Error running query:', JSON.stringify(sqlDict), err);

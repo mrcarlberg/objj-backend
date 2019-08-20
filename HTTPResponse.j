@@ -5,7 +5,7 @@
 
 @import <LightObject/LOJSKeyedArchiver.j>
 
-@protocol HTTPResponse 
+@protocol HTTPResponse
 
 /*!
     Returns the length of the data in bytes.
