@@ -103,12 +103,67 @@
 
 @end
 
+@implementation BufferHTTPResponse : CPObject<HTTPResponse> {
+        Buffer  bytes;
+}
+
+- (id)initWithBytes:(Buffer)someBytes {
+    self = [super init];
+    if (self) {
+        bytes = someBytes;
+    }
+    return self;
+}
+
+- (CPUInteger)contentLength {
+    return bytes ? bytes.length : 0;
+}
+
+- (CPData)readDataOfLength:(NSUInteger)lengthParameter {
+    if ((bytes ? bytes.length : 0) <= lengthParameter) {
+        return bytes;
+    } else {
+        [CPException raise:@"NotSupportedException" reason:@"Don't support getting data in chunks"];
+    }
+}
+
+- (BOOL)isDone {
+    // Maybe we should return YES only after the method 'readDataOfLength' is called.
+    return YES;
+}
+
+- (CPDictionary)httpHeaders {
+    return [CPDictionary dictionaryWithObjectsAndKeys:[CPString stringWithFormat:@"LOF Backend %@ (%@)", "<Version>", "<Port>"],
+                                                                                 @"Server", [self contentLength], "Content-Length"];
+}
+
+@end
+
+@implementation HtmlHTTPResponse : BufferHTTPResponse
+
+/*- (id)initWithBytes:(Buffer)someBytes {
+    self = [super initWithBytes:someBytes];
+    if (self) {
+    }
+    return self;
+}*/
+
+- (CPDictionary)httpHeaders {
+    var /*CPMutableDictionary*/ headers = [CPMutableDictionary dictionaryWithDictionary:[super httpHeaders]];
+
+    [headers setObject:@"text/html; charset=utf-8" forKey:@"Content-Type"];
+
+    return headers;
+}
+
+@end
+
 @implementation UnauthorizedHTTPResponse : JSONHTTPResponse
 
 - (id)initWithFunction:(id)aFunction {
     self = [super initWithObject:[CPDictionary dictionaryWithObject:[CPString stringWithFormat:@"Not authorized to use function %@", aFunction] forKey:@"error"]];
     if (self) {
-        
+
     }
     return self;
 }
