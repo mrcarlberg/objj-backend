@@ -11,6 +11,11 @@
 @import "BackendFunctionModify.j"
 
 @global require
+@global BackendDocumentRootPath
+@global BackendOptions
+
+var url = require('url')
+var fs  = require('fs');
 
 var _sharedInstance = nil;
 
@@ -27,11 +32,11 @@ var _sharedInstance = nil;
 
 - (id)init {
     self = [super init];
-    
+
     if (self) {
         port = 1337;
     }
-    
+
     return self;
 }
 
@@ -69,9 +74,10 @@ var _sharedInstance = nil;
                             res.setHeader(headerName, headerValue);
                             }];
                         }
-                        var data = [[httpResponse readDataOfLength:[httpResponse contentLength]] rawString];
+                        var data = [httpResponse readDataOfLength:[httpResponse contentLength]];
                         if (data != nil) {
-                            res.write(data);
+                            // If we have a 'isa' property it is a CPData. Should be a Buffer if not and we can write a string or a Buffer
+                            res.write(data.isa ? [data rawString] : data);
                         }
                         res.end();
                     }];
@@ -87,9 +93,10 @@ var _sharedInstance = nil;
                             res.setHeader(headerName, headerValue);
                             }];
                         }
-                        var data = [[httpResponse readDataOfLength:[httpResponse contentLength]] rawString];
+                        var data = [httpResponse readDataOfLength:[httpResponse contentLength]];
                         if (data != nil) {
-                            res.write(data);
+                            // If we have a 'isa' property it is a CPData. Should be a Buffer if not and we can write a string or a Buffer
+                            res.write(data.isa ? [data rawString] : data);
                         }
                         res.end();
                     }];
@@ -116,73 +123,97 @@ var _sharedInstance = nil;
     var /*Class*/ functionClass = nil;
     var /*CPDictionary*/ getQuery;
     var /*CPMutableDictionary*/ parameters;
+    var urlParts = url.parse(path);
+    var pathname = urlParts.pathname;
 
-    try {
-        while (([unqualifiedComponents count] > 0) && ([[unqualifiedComponents lastObject] rangeOfString:@"="].location != CPNotFound)) {
-            [unqualifiedComponents removeLastObject];
-        }
+    if (pathname.startsWith("/backend")) {
+        try {
+            while (([unqualifiedComponents count] > 0) && ([[unqualifiedComponents lastObject] rangeOfString:@"="].location != CPNotFound)) {
+                [unqualifiedComponents removeLastObject];
+            }
 
-        switch ([unqualifiedComponents count]) {
-            case 0:
-            case 1:
-                // Path is invalid
-                return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:@"-"]);
+            switch ([unqualifiedComponents count]) {
+                case 0:
+                case 1:
+                    // Path is invalid
+                    return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:@"-"]);
 
-            case 2:
-                // Path contains only a function name
-                functionName = [unqualifiedComponents objectAtIndex:1];
-                functionClass = [self functionClassForName:functionName];
-                sessionKey = nil;
-                subpath = @"";
-                break;
-
-            default:
-                functionName = [unqualifiedComponents objectAtIndex:1];
-                functionClass = [self functionClassForName:functionName];
-                if (functionClass == nil) {
-                    // Path contains a session key
-                    sessionKey = [unqualifiedComponents objectAtIndex:1];
-                    functionName = [unqualifiedComponents objectAtIndex:2];
+                case 2:
+                    // Path contains only a function name
+                    functionName = [unqualifiedComponents objectAtIndex:1];
                     functionClass = [self functionClassForName:functionName];
-                    subpath = [[pathComponents subarrayWithRange:CPMakeRange(3, [pathComponents count] - 3)] componentsJoinedByString:@"/"];
+                    sessionKey = nil;
+                    subpath = @"";
+                    break;
+
+                default:
+                    functionName = [unqualifiedComponents objectAtIndex:1];
+                    functionClass = [self functionClassForName:functionName];
                     if (functionClass == nil) {
-                        // Path contains a session key, and an entity name
-                        functionName = @"fetch";
-                        functionClass = [BackendFunctionFetch class];
+                        // Path contains a session key
+                        sessionKey = [unqualifiedComponents objectAtIndex:1];
+                        functionName = [unqualifiedComponents objectAtIndex:2];
+                        functionClass = [self functionClassForName:functionName];
+                        subpath = [[pathComponents subarrayWithRange:CPMakeRange(3, [pathComponents count] - 3)] componentsJoinedByString:@"/"];
+    /*                    if (functionClass == nil) {
+                            // Path contains a session key, and an entity name
+                            functionName = @"fetch";
+                            functionClass = [BackendFunctionFetch class];
+                            subpath = [[pathComponents subarrayWithRange:CPMakeRange(2, [pathComponents count] - 2)] componentsJoinedByString:@"/"];
+                        }*/
+                    } else {
+                        // Path contains a function name and a subpath
                         subpath = [[pathComponents subarrayWithRange:CPMakeRange(2, [pathComponents count] - 2)] componentsJoinedByString:@"/"];
                     }
-                } else {
-                    // Path contains a function name and a subpath
-                    subpath = [[pathComponents subarrayWithRange:CPMakeRange(2, [pathComponents count] - 2)] componentsJoinedByString:@"/"];
+                    break;
+            }
+
+            parameters = [[request allHeaderFields] mutableCopy];
+            getQuery = [request parseGetParams];
+            if (getQuery != nil) {
+                parameters[@"getQuery"] = getQuery;
+            }
+
+            var /*CPObject <BackendFunction>*/ aFunction = [[functionClass alloc] initWithSubpath:subpath parameters:parameters];
+
+            if (aFunction) {
+                var parameterError = [aFunction parameterError];
+                if (parameterError) {
+                    console.log("parameterError: " + [parameterError userInfo]);
                 }
-                break;
-        }
 
-        parameters = [[request allHeaderFields] mutableCopy];
-        getQuery = [request parseGetParams];
-        if (getQuery != nil) {
-            parameters[@"getQuery"] = getQuery;
-        }
+                if (!aFunction) {
+                    return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:functionName]);
+                }
 
-        var /*CPObject <BackendFunction>*/ aFunction = [[functionClass alloc] initWithSubpath:subpath parameters:parameters];
-        var parameterError = [aFunction parameterError];
-        if (parameterError) {
-            console.log("parameterError: " + [parameterError userInfo]);
+                if (/*Authority check*/true) {
+                    return [aFunction responseWithCompletionHandler:function(httpResponse) {
+                        return completionBlock(httpResponse);
+                    }];
+                } else {
+                    return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:functionName]);
+                }
+            }
+        } catch (exception) {
+            return completionBlock([[ExceptionHTTPResponse alloc] initWithException:exception]);
         }
+    } else if (BackendDocumentRootPath) {
+        // Ok, here we simulate a webserver as the request is not from the LightObject framework.
+        // Sometimes it is complicated to setup a webserver to make it run, this will make it very easy to start.
+        fs.readFile([BackendDocumentRootPath stringByAppendingPathComponent:pathname], function(err, data) {
+            if (err) {
+                if (BackendOptions.verbose) console.log("Accessing: " + [BackendDocumentRootPath stringByAppendingPathComponent:pathname] + " Not Found: " + err);
+                return completionBlock([[NotFoundHTTPResponse alloc] init]);
+            }
 
-        if (!aFunction) {
-            return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:functionName]);
-        }
+            if (BackendOptions.verbose) console.log("Accessing: " + [BackendDocumentRootPath stringByAppendingPathComponent:pathname] + " with length: " + data.length);
 
-        if (/*Authority check*/true) {
-            return [aFunction responseWithCompletionHandler:function(httpResponse) {
-                return completionBlock(httpResponse);
-            }];
-        } else {
-            return completionBlock([[UnauthorizedHTTPResponse alloc] initWithFunction:functionName]);
-        }
-    } catch (exception) {
-        return completionBlock([[ExceptionHTTPResponse alloc] initWithException:exception]);
+            var pathExtension = [pathname pathExtension];
+            if (pathExtension === @"html" || pathExtension === @"htm") {
+                return completionBlock([[HtmlHTTPResponse alloc] initWithBytes:data]);
+            }
+            return completionBlock([[BufferHTTPResponse alloc] initWithBytes:data]);
+        });
     }
 }
 
@@ -191,7 +222,7 @@ var _sharedInstance = nil;
     var /*CPData*/ body = request.body;
     var /*CPArray*/ pathComponents = [path pathComponents];
     var /*CPString*/ sessionKey;
-    var /*CPString*/ functionName = [pathComponents count] > 0 ? [pathComponents objectAtIndex:1] : nil;
+    var /*CPString*/ functionName = [pathComponents count] > 0 ? [pathComponents objectAtIndex:2] : nil;
     var /*Class*/ functionClass = nil;
     var /*CPObject <BackendFunction>*/ aFunction;
 //    var /*CPObject <HTTPResponse>*/ response;
