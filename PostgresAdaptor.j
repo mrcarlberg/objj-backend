@@ -674,20 +674,23 @@ function hidden(query, callback) {
     var rnd = 0;
 
     var stdin = process.openStdin();
-    process.stdin.on("data", function(char) {
+    var onDataHandler = function(char) {
         char = char + "";
         switch (char) {
             case "\n":
             case "\r":
             case "\u0004":
-                stdin.pause();
+                stdin.removeListener("data", onDataHandler);
+                //stdin.pause();
                 break;
             default:
                 rnd += Math.floor(Math.random() + 0.5);
                 process.stdout.write("\033[2K\033[200D" + query + Array(rl.line.length+1+rnd).join("*"));
                 break;
         }
-    });
+    }
+
+    process.stdin.on("data", onDataHandler);
 
     rl.question(query, function(value) {
         rl.history = rl.history.slice(1);
