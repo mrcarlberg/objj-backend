@@ -25,9 +25,10 @@
 
 var path = require('path');
 var url = require('url');
+var fs = require('fs');
 
 function help(status) {
-    console.log("usage: " + path.basename(process.argv[1]) + " [OPTIONS] MODEL_FILE");
+    console.log("usage: " + path.basename(process.argv[1]) + " [OPTIONS] MODEL_FILE | DOCUMENT_ROOT");
     console.log("OPTIONS:");
     console.log("        -d DATABASE_NAME        Name of the database. Defaults to model file name");
     console.log("        -u DATABASE_USERNAME    Username for the database.");
@@ -43,6 +44,7 @@ function help(status) {
 
 BackendDatabaseAdaptor = nil;
 BackendModelPath = nil;
+BackendDocumentRootPath = nil;
 BackendOptions = nil;
 
 function main(args, namedArgs)
@@ -65,9 +67,10 @@ function main(args, namedArgs)
         else infiles.push([[CPURL URLWithString:arg] absoluteString]);
     }
 
-    if (infiles.length !== 1) console.error(@"No model file"), help(1);
+    if (infiles.length < 1) console.error(@"No model file"), help(1);
     if (options.databaseUsername == nil) console.error(@"No database username"), help(1);
 
+    BackendOptions = options;
 
     if ([infiles[0] hasPrefix:@"/"]) {
         BackendModelPath = [[CPURL URLWithString:@"file://" + infiles[0]] absoluteString];
@@ -75,24 +78,96 @@ function main(args, namedArgs)
         BackendModelPath = [[CPURL URLWithString:[[@"file://" + path.dirname(process.mainModule.filename) stringByDeletingLastPathComponent] stringByAppendingPathComponent:infiles[0]]] absoluteString];
     }
 
+    if (infiles[1]) {
+        if ([infiles[1] hasPrefix:@"/"]) {
+            BackendDocumentRootPath = decodeURIComponent(url.parse([[CPURL URLWithString:@"file://" + infiles[1]] absoluteString]).pathname);
+        } else {
+            BackendDocumentRootPath = decodeURIComponent(url.parse([[CPURL URLWithString:[[@"file://" + path.dirname(process.mainModule.filename) stringByDeletingLastPathComponent] stringByAppendingPathComponent:infiles[1]]] absoluteString]).pathname);
+        }
+    }
+
+    var modelPath = decodeURIComponent(url.parse(BackendModelPath).pathname);
+    fs.stat(modelPath, function(err, stats) {
+        if (err) {
+            console.error("Path '" + modelPath + "' does not exists: " + err);
+            process.exit(1);
+        }
+
+        if (stats.isDirectory()) {
+            // Ok, we have a directory. Lets try to find a model file
+            // 1. Check if path ends with ".xcdatamodeld" or ".xcdatamodel"
+            // 2. Check for the directory Model.xcdatamodeld in this directory
+            // 3. Check for the file Model.xml in this directory
+            // 4. Check for the directory Resources/Model.xcdatamodeld in this directory
+            // 5. Check for the file Resources/Model.xml in this directory
+            // TODO: Redo this to read an array of paths to check.
+
+            if (!modelPath.endsWith(".xcdatamodeld") && !modelPath.endsWith(".xcdatamodel")) {
+                BackendDocumentRootPath = modelPath;
+                modelPath = [modelPath stringByAppendingPathComponent:"Model.xcdatamodeld"];
+                fs.stat(modelPath, function(err, stats) {
+                    if (err) {
+                        modelPath = [BackendDocumentRootPath stringByAppendingPathComponent:"Model.xml"];
+                        fs.stat(modelPath, function(err, stats) {
+                            if (err) {
+                                modelPath = [[BackendDocumentRootPath stringByAppendingPathComponent:@"Resources"] stringByAppendingPathComponent:"Model.xcdatamodeld"];
+                                fs.stat(modelPath, function(err, stats) {
+                                    if (err) {
+                                        modelPath = [[BackendDocumentRootPath stringByAppendingPathComponent:@"Resources"] stringByAppendingPathComponent:"Model.xml"];
+                                        fs.stat(modelPath, function(err, stats) {
+                                            if (err) {
+                                                console.error("Can't find model under path '" + BackendDocumentRootPath + "/...'");
+                                                process.exit(1);
+                                            } else {
+                                                BackendModelPath = @"file://" + modelPath;
+                                                StartWebServer(BackendModelPath);
+                                            }
+                                        });
+                                    } else {
+                                        BackendModelPath = @"file://" + modelPath;
+                                        StartWebServer(BackendModelPath);
+                                    }
+                                });
+                            } else {
+                                BackendModelPath = @"file://" + modelPath;
+                                StartWebServer(BackendModelPath);
+                            }
+                        });
+                    } else {
+                        BackendModelPath = @"file://" + modelPath;
+                        StartWebServer(BackendModelPath);
+                    }
+                });
+            } else {
+                BackendModelPath = @"file://" + modelPath;
+                StartWebServer(BackendModelPath);
+            }
+        } else {
+           StartWebServer(BackendModelPath);
+        }
+    });
+}
+
+StartWebServer = function(modelPath)
+{
+    console.log("Reading model file from url: " + modelPath);
     var model = [CPManagedObjectModel parseCoreDataModel:BackendModelPath/* completionHandler:function(model) {*/];
     var config = {
-        user: options.databaseUsername,
-        database: options.databaseName || [[BackendModelPath lastPathComponent] stringByDeletingPathExtension],
-        host: options.databaseHost
+        user: BackendOptions.databaseUsername,
+        database: BackendOptions.databaseName || [[BackendModelPath lastPathComponent] stringByDeletingPathExtension],
+        host: BackendOptions.databaseHost
     };
 
     if (model == nil) {
         console.error("Can't find model");
         process.exit(1);
     }
-    if (options.databasePassword) config.password = options.databasePassword;
-    if (options.databasePort) config.port = options.databasePort;
+    if (BackendOptions.databasePassword) config.password = BackendOptions.databasePassword;
+    if (BackendOptions.databasePort) config.port = BackendOptions.databasePort;
 
     var pgAdaptor = [[PostgresAdaptor alloc] initWithConnectionConfig:config andModel:model];
 
     BackendDatabaseAdaptor = pgAdaptor;
-    BackendOptions = options;
 
     ValidatedDatabaseWithCompletionHandler(function() {
       [[WebServer sharedInstance] startWebServer];
