@@ -3,7 +3,7 @@
     "description": "Backend for LightObject framework.",
     "homepage": "http://github.com/mrcarlberg/objj-backend",
     "main": "xxxxxxx.js",
-    "version": "0.4",
+    "version": "0.4.0",
     "engines": {
         "node": ">=4.2"
     },
