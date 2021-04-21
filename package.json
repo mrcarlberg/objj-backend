@@ -3,24 +3,45 @@
     "description": "Backend for LightObject framework.",
     "homepage": "http://github.com/mrcarlberg/objj-backend",
     "main": "xxxxxxx.js",
-    "version": "0.3",
-    "engines": {"node": ">=4.2"},
+    "version": "0.4",
+    "engines": {
+        "node": ">=4.2"
+    },
     "preferGlobal": true,
-    "maintainers": [{"name": "Martin Carlberg",
-                     "email": "martin@carlberg.org",
-                     "web": "http://carlberg.org"}],
-    "repository": {"type": "git",
-                   "url": "http://github.com/mrcarlberg/objj-backend"},
-    "licenses": [{"type": "MIT",
-                  "url": "http://raw.github.com/mrcarlberg/objj-backend/master/LICENSE"}],
-    "keywords": ["ORM", "Cappuccino", "Objective-J", "JavaScript", "ECMAScript", "Core Data", "EOF", "database", "backend"],
+    "maintainers": [
+        {
+            "name": "Martin Carlberg",
+            "email": "martin@carlberg.org",
+            "web": "http://carlberg.org"
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "http://github.com/mrcarlberg/objj-backend"
+    },
+    "licenses": [
+        {
+            "type": "MIT",
+            "url": "http://raw.github.com/mrcarlberg/objj-backend/master/LICENSE"
+        }
+    ],
+    "keywords": [
+        "ORM",
+        "Cappuccino",
+        "Objective-J",
+        "JavaScript",
+        "ECMAScript",
+        "Core Data",
+        "EOF",
+        "Enterprise Object Framework",
+        "database",
+        "backend"
+    ],
     "dependencies": {
-        "objj-transpiler": ">=0.4",
-        "xmldom": "^0.1.27",
-        "xmlhttprequest": ">=1.6.0",
-        "readline-history": ">=1.2.0",
+        "objj-runtime": ">0.3.3",
         "pg": ">=4.4"
     },
-
-    "bin": {"objj": "./bin/objj"}
+    "scripts": {
+        "start": "npx objj main.j"
+    }
 }
