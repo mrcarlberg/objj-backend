@@ -10,10 +10,10 @@ To install the backend use ```npm```
 
 ```npm install objj-backend```
 
-From the installed directory do ```bin/objj main.j --help``` to get all options
+From the installed directory do ```npx objj main.j --help``` to get all options
 
 A typical start of the backend looks like this:
-```bin/objj main.j -d <database name> -u <database username> -v -V -A Model.xcdatamodeld```
+```npx objj main.j -d <database name> -u <database username> -v -V -A Model.xcdatamodeld```
 
 This means verbose is on and it will log all sql etc with ```-v```, validate the database against the model ```-V```, alter the database so it corresponds to the model ```-A``` and the path to the model file is ```Model.xcdatamodeld```.
 
